@@ -13,6 +13,20 @@ router = APIRouter()
 STORAGE_DIR = "../storage/files"
 os.makedirs(STORAGE_DIR, exist_ok=True)
 
+# Initialize Authority Identity for the Oracle Pattern
+AUTH_PRIV, AUTH_PUB = core.get_or_create_authority_keys(STORAGE_DIR)
+
+def _generate_attestation(file_hash: str, ai_prob: float, ai_assess: str, ai_flags: list, timestamp) -> tuple[dict, str]:
+    payload = {
+        "file_hash": file_hash,
+        "ai_probability": ai_prob,
+        "ai_assessment": ai_assess,
+        "ai_flags": ai_flags,
+        "timestamp": timestamp.isoformat() if timestamp else ""
+    }
+    signature = core.sign_json_payload(AUTH_PRIV, payload)
+    return payload, signature
+
 @router.post("/media/upload", response_model=schemas.MediaResponse)
 async def upload_media(file: UploadFile = File(...), db: Session = Depends(database.get_db)):
     # 1. Read bytes & calculate hash
@@ -145,6 +159,11 @@ async def verify_media(
     db.commit()
     db.refresh(db_verification)
     
+    # Generate Attestation
+    att_payload, att_sig = _generate_attestation(
+        current_hash, ai_prob, ai_assess, ai_flags, db_verification.verified_at
+    )
+    
     return schemas.VerificationReport(
         id=db_verification.id,
         media_id=db_verification.media_id,
@@ -157,6 +176,9 @@ async def verify_media(
         ai_assessment=ai_assess,
         ai_flags=ai_flags,
         ai_signals=ai_signals,
+        attestation_payload=att_payload,
+        authority_signature=att_sig,
+        authority_public_key=AUTH_PUB,
         overall_status=overall,
         verified_at=db_verification.verified_at
     )
@@ -171,6 +193,11 @@ def get_verifications(db: Session = Depends(database.get_db)):
             flags = json.loads(v.ai_flags) if v.ai_flags else []
         except Exception:
             flags = []
+            
+        att_payload, att_sig = _generate_attestation(
+            v.calculated_hash, v.ai_probability, v.ai_assessment, flags, v.verified_at
+        )
+            
         results.append(schemas.VerificationReport(
             id=v.id,
             media_id=v.media_id,
@@ -182,6 +209,9 @@ def get_verifications(db: Session = Depends(database.get_db)):
             ai_probability=v.ai_probability,
             ai_assessment=v.ai_assessment,
             ai_flags=flags,
+            attestation_payload=att_payload,
+            authority_signature=att_sig,
+            authority_public_key=AUTH_PUB,
             overall_status=v.overall_status,
             verified_at=v.verified_at
         ))
@@ -196,6 +226,11 @@ def get_verification(id: int, db: Session = Depends(database.get_db)):
         flags = json.loads(v.ai_flags) if v.ai_flags else []
     except Exception:
         flags = []
+        
+    att_payload, att_sig = _generate_attestation(
+        v.calculated_hash, v.ai_probability, v.ai_assessment, flags, v.verified_at
+    )
+    
     media = db.query(models.Media).filter(models.Media.id == v.media_id).first()
     return schemas.VerificationReport(
         id=v.id,
@@ -208,6 +243,9 @@ def get_verification(id: int, db: Session = Depends(database.get_db)):
         ai_probability=v.ai_probability,
         ai_assessment=v.ai_assessment,
         ai_flags=flags,
+        attestation_payload=att_payload,
+        authority_signature=att_sig,
+        authority_public_key=AUTH_PUB,
         overall_status=v.overall_status,
         verified_at=v.verified_at
     )

@@ -33,5 +33,11 @@ class VerificationReport(BaseModel):
     ai_assessment: str
     ai_flags: Optional[list] = []
     ai_signals: Optional[dict] = {}
+    
+    # Cryptographic Attestation Fields
+    attestation_payload: Optional[dict] = None
+    authority_signature: Optional[str] = None
+    authority_public_key: Optional[str] = None
+    
     overall_status: str
     verified_at: datetime

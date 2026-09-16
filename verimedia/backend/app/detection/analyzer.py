@@ -480,7 +480,7 @@ def _extract_jpeg_frames(video_bytes: bytes, max_frames: int = 8) -> List[bytes]
 
 def _fallback_result(reason: str) -> Dict[str, Any]:
     return {
-        "manipulation_probability": 0,
+        "probability": 0.0,
         "assessment": "ANALYSIS FAILED",
         "flags": [reason],
         "signals": {},

@@ -27,8 +27,8 @@ class VerificationReport(BaseModel):
     filename: str
     calculated_hash: str
     original_hash: Optional[str] = None
-    hash_match: bool
-    signature_valid: bool
+    hash_match: Optional[bool] = None
+    signature_valid: Optional[bool] = None
     ai_probability: float
     ai_assessment: str
     ai_flags: Optional[list] = []

@@ -8,3 +8,7 @@ aiofiles>=23.0.0
 Pillow>=10.0.0
 numpy>=1.26.0
 scipy>=1.11.0
+torch --index-url https://download.pytorch.org/whl/cpu
+transformers
+pillow
+facenet-pytorch

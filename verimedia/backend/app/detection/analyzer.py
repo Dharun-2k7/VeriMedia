@@ -17,14 +17,38 @@ References:
 - "CNN-generated images are surprisingly easy to spot" (Wang et al., 2020)
 """
 
+import os
 import io
 import math
 import struct
+import logging
 from typing import Dict, Any, List, Tuple, Optional
 
 import numpy as np
 from PIL import Image, ImageFilter
 from scipy.fft import dct as scipy_dct
+
+# ─────────────────────────────────────────────
+# Initialize Machine Learning Model
+# ─────────────────────────────────────────────
+ML_AVAILABLE = False
+deepfake_pipeline = None
+try:
+    from transformers import pipeline
+    import torch
+    from facenet_pytorch import MTCNN
+    
+    logging.info("Loading Deepfake ML Model (this may take a moment)...")
+    # Using a fast, reliable pre-trained model for real/fake classification
+    deepfake_pipeline = pipeline("image-classification", model="dima806/deepfake_vs_real_image_detection", device="cpu")
+    
+    logging.info("Loading MTCNN Face Extractor...")
+    face_extractor = MTCNN(keep_all=False, device='cpu', post_process=False, margin=20)
+    
+    ML_AVAILABLE = True
+except Exception as e:
+    logging.warning(f"ML Model could not be loaded, falling back to pure heuristics. Error: {e}")
+    face_extractor = None
 
 
 # ─────────────────────────────────────────────
@@ -336,8 +360,76 @@ def analyze_image(file_bytes: bytes) -> Dict[str, Any]:
             weighted_sum += signals[key]["score"] * w
             total_weight += w
 
-    probability = weighted_sum / total_weight if total_weight > 0 else 0.0
-    probability = max(0.0, min(1.0, probability))
+    heuristic_prob = weighted_sum / total_weight if total_weight > 0 else 0.0
+    heuristic_prob = max(0.0, min(1.0, heuristic_prob * 2.5))
+    
+    # ─────────────────────────────────────────────
+    # NEURAL NETWORK INTEGRATION (WITH FACE EXTRACTION)
+    # ─────────────────────────────────────────────
+    ml_prob = None
+    face_detected = False
+    
+    if ML_AVAILABLE and deepfake_pipeline:
+        try:
+            # Helper to parse HuggingFace classification output
+            def get_fake_prob(results):
+                for res in results:
+                    if res['label'].lower() == 'fake':
+                        return res['score']
+                for res in results:
+                    if res['label'].lower() == 'real':
+                        return 1.0 - res['score']
+                return 0.0
+
+            # 1. Analyze Full Context Image
+            full_results = deepfake_pipeline(img)
+            full_prob = get_fake_prob(full_results)
+            ml_prob = full_prob
+            
+            # 2. Analyze Extracted Face (MesoNet-style approach for Face Swaps)
+            if face_extractor:
+                boxes, _ = face_extractor.detect(img)
+                if boxes is not None and len(boxes) > 0:
+                    face_detected = True
+                    # Take the first prominent face
+                    box = boxes[0]
+                    
+                    # Add a 20% margin to capture the blending boundary (forehead, chin)
+                    x1, y1, x2, y2 = box
+                    w = x2 - x1
+                    h = y2 - y1
+                    margin_x = w * 0.2
+                    margin_y = h * 0.2
+                    
+                    x1 = max(0, x1 - margin_x)
+                    y1 = max(0, y1 - margin_y)
+                    x2 = min(img.width, x2 + margin_x)
+                    y2 = min(img.height, y2 + margin_y)
+                    
+                    face_img = img.crop((x1, y1, x2, y2))
+                    
+                    # Run ML on just the face
+                    face_results = deepfake_pipeline(face_img)
+                    face_prob = get_fake_prob(face_results)
+                    
+                    logging.info(f"Full image ML prob: {full_prob:.4f}, Face ML prob: {face_prob:.4f}")
+                    
+                    # Take the maximum score to aggressively catch face swaps
+                    ml_prob = max(full_prob, face_prob)
+                else:
+                    logging.info("No face detected by MTCNN")
+            
+        except Exception as e:
+            logging.error(f"ML Pipeline failed: {e}")
+    
+    # Final Hybrid Probability
+    if ml_prob is not None:
+        # Use the maximum of the two so that if either engine detects a fake, it gets flagged
+        probability = max(ml_prob, heuristic_prob)
+        signals["neural_network"] = {"score": ml_prob, "active": True, "face_extracted": face_detected}
+    else:
+        probability = heuristic_prob
+        signals["neural_network"] = {"score": 0.0, "active": False, "face_extracted": False}
 
     # Identify which signals are flagged
     flags = []
@@ -360,6 +452,9 @@ def analyze_image(file_bytes: bytes) -> Dict[str, Any]:
     for key, threshold in THRESHOLDS.items():
         if key in signals and signals[key].get("score", 0) >= threshold:
             flags.append(FLAG_LABELS[key])
+            
+    if ml_prob is not None and ml_prob > 0.6:
+        flags.append("Neural Network detected Deepfake characteristics")
 
     return {
         "probability": probability,
@@ -384,11 +479,11 @@ def _analyze_image_file(file_bytes: bytes) -> Dict[str, Any]:
     result = analyze_image(file_bytes)
     prob_pct = int(result["probability"] * 100)
 
-    if prob_pct < 25:
+    if prob_pct < 15:
         assessment = "LIKELY AUTHENTIC"
-    elif prob_pct < 50:
+    elif prob_pct < 35:
         assessment = "INCONCLUSIVE"
-    elif prob_pct < 75:
+    elif prob_pct < 60:
         assessment = "SUSPICIOUS"
     else:
         assessment = "HIGH LIKELIHOOD OF MANIPULATION"

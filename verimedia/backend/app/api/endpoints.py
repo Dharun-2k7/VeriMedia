@@ -105,22 +105,27 @@ async def sign_media(file: UploadFile = File(...), db: Session = Depends(databas
 @router.post("/media/verify", response_model=schemas.VerificationReport)
 async def verify_media(
     file: UploadFile = File(...),
-    signature: str = Form(...),
-    public_key: str = Form(...),
+    signature: str = Form(None),
+    public_key: str = Form(None),
     db: Session = Depends(database.get_db)
 ):
     file_bytes = await file.read()
     current_hash = core.calculate_sha256(file_bytes)
     
     # Cryptographic Verification
-    is_valid_sig = core.verify_signature(public_key, file_bytes, signature)
+    is_valid_sig = None
+    db_signature = None
+    db_media = None
+    original_hash = None
+    hash_match = None
     
-    # Find matching signature in DB to get original hash (optional, but good for reporting)
-    db_signature = db.query(models.Signature).filter(models.Signature.signature == signature).first()
-    db_media = db.query(models.Media).filter(models.Media.id == db_signature.media_id).first() if db_signature else None
-    
-    original_hash = db_media.file_hash if db_media else None
-    hash_match = (original_hash == current_hash) if original_hash else False
+    if signature and public_key:
+        is_valid_sig = core.verify_signature(public_key, file_bytes, signature)
+        db_signature = db.query(models.Signature).filter(models.Signature.signature == signature).first()
+        db_media = db.query(models.Media).filter(models.Media.id == db_signature.media_id).first() if db_signature else None
+        
+        original_hash = db_media.file_hash if db_media else None
+        hash_match = (original_hash == current_hash) if original_hash else False
     
     # Real AI Analysis
     ai_result = analyzer.analyze_media(file_bytes, file.content_type or "unknown")
@@ -130,21 +135,25 @@ async def verify_media(
     ai_signals = ai_result.get("signals", {})
     
     # Result Logic Interpretation
-    if is_valid_sig and ai_prob < 0.5:
-        overall = "VERIFIED / LOW RISK"
-    elif is_valid_sig and ai_prob >= 0.5:
-        overall = "SIGNED BUT AI-SUSPICIOUS"
-    elif not is_valid_sig and db_signature and ai_prob < 0.5:
-        overall = "FILE MODIFIED AFTER SIGNING"
-    elif not is_valid_sig and db_signature and ai_prob >= 0.5:
-        overall = "HIGHLY SUSPICIOUS"
-    elif not db_signature and ai_prob < 0.5:
-        overall = "UNVERIFIED"
+    if signature and public_key:
+        if is_valid_sig and ai_prob < 0.5:
+            overall = "VERIFIED / LOW RISK"
+        elif is_valid_sig and ai_prob >= 0.5:
+            overall = "SIGNED BUT AI-SUSPICIOUS"
+        elif not is_valid_sig and db_signature and ai_prob < 0.5:
+            overall = "FILE MODIFIED AFTER SIGNING"
+        elif not is_valid_sig and db_signature and ai_prob >= 0.5:
+            overall = "HIGHLY SUSPICIOUS"
+        else:
+            overall = "UNVERIFIED"
+            
+        if not is_valid_sig and db_signature:
+            overall = "MEDIA TAMPERED" # For tamper test
     else:
-        overall = "SUSPICIOUS"
-        
-    if not is_valid_sig and db_signature:
-        overall = "MEDIA TAMPERED" # For tamper test
+        if ai_prob < 0.35:
+            overall = "UNVERIFIED"
+        else:
+            overall = "SUSPICIOUS"
         
     db_verification = models.Verification(
         media_id=db_media.id if db_media else None,
@@ -284,3 +293,15 @@ def get_signed_media(db: Session = Depends(database.get_db)):
 @router.get("/health")
 def health_check():
     return {"status": "ok"}
+
+from fastapi.responses import FileResponse
+import os
+from fastapi import HTTPException
+
+@router.get("/media/{id}/download")
+def download_media(id: int, db: Session = Depends(database.get_db)):
+    """Returns the raw media file for the UI canvas"""
+    media = db.query(models.Media).filter(models.Media.id == id).first()
+    if not media or not os.path.exists(media.storage_path):
+        raise HTTPException(status_code=404, detail="Media not found")
+    return FileResponse(media.storage_path, media_type=media.file_type)

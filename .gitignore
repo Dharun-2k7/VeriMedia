@@ -1,0 +1,41 @@
+# Virtual environments
+**/venv/
+**/.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Storage / uploads
+verimedia/storage/files/
+storage/files/
+
+# Database
+*.db
+
+# Node modules
+**/node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+.kilo/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archives
+*.zip
+
+# Docker
+docker-compose.override.yml

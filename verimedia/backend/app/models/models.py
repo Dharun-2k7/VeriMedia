@@ -6,11 +6,11 @@ class Media(Base):
     __tablename__ = "media"
     
     id = Column(Integer, primary_key=True, index=True)
-    filename = Column(String, index=True)
-    file_hash = Column(String, index=True)
-    file_type = Column(String)
+    filename = Column(String(512), index=True)
+    file_hash = Column(String(64), index=True)
+    file_type = Column(String(128))
     file_size = Column(Integer)
-    storage_path = Column(String)
+    storage_path = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Signature(Base):
@@ -18,9 +18,9 @@ class Signature(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     media_id = Column(Integer, index=True)
-    algorithm = Column(String)
-    signature = Column(String)
-    public_key = Column(String)
+    algorithm = Column(String(128))
+    signature = Column(Text)
+    public_key = Column(Text)
     signed_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Verification(Base):
@@ -28,10 +28,11 @@ class Verification(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     media_id = Column(Integer, index=True)
-    calculated_hash = Column(String)
+    calculated_hash = Column(String(64))
     signature_valid = Column(Boolean)
     ai_probability = Column(Float)
-    ai_assessment = Column(String)
+    ai_assessment = Column(String(128))
     ai_flags = Column(Text, default="[]")   # JSON list of triggered signal labels
-    overall_status = Column(String)
+    overall_status = Column(String(128))
     verified_at = Column(DateTime(timezone=True), server_default=func.now())
+

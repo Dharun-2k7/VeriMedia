@@ -1,4 +1,12 @@
-databases: []
+databases:
+  # ────────────────────────────────────────────
+  # PostgreSQL Database (Free 1GB on Render)
+  # ────────────────────────────────────────────
+  - name: verimedia-db
+    plan: free
+    region: oregon
+    databaseName: verimedia
+    user: verimedia
 
 services:
   # ────────────────────────────────────────────
@@ -8,7 +16,7 @@ services:
     name: verimedia-backend
     runtime: python
     region: oregon
-    plan: starter
+    plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
@@ -17,15 +25,15 @@ services:
         value: "3.12.0"
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: verimedia-db
+          property: connectionString
       - key: STORAGE_DIR
-        value: /opt/render/project/storage
+        value: /opt/render/project/src/storage
       - key: FRONTEND_URL
         generateValue: false
         sync: false
-    disk:
-      name: verimedia-storage
-      mountPath: /opt/render/project/storage
-      sizeGB: 1
 
   # ────────────────────────────────────────────
   # Next.js Frontend
@@ -34,7 +42,7 @@ services:
     name: verimedia-frontend
     runtime: node
     region: oregon
-    plan: starter
+    plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
     startCommand: npm start

@@ -1,0 +1,46 @@
+databases: []
+
+services:
+  # ────────────────────────────────────────────
+  # FastAPI Backend (Python + AI/ML Models)
+  # ────────────────────────────────────────────
+  - type: web
+    name: verimedia-backend
+    runtime: python
+    region: oregon
+    plan: starter
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: STORAGE_DIR
+        value: /opt/render/project/storage
+      - key: FRONTEND_URL
+        generateValue: false
+        sync: false
+    disk:
+      name: verimedia-storage
+      mountPath: /opt/render/project/storage
+      sizeGB: 1
+
+  # ────────────────────────────────────────────
+  # Next.js Frontend
+  # ────────────────────────────────────────────
+  - type: web
+    name: verimedia-frontend
+    runtime: node
+    region: oregon
+    plan: starter
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NEXT_PUBLIC_API_URL
+        generateValue: false
+        sync: false

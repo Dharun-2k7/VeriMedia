@@ -2,6 +2,23 @@
 
 VeriMedia is a platform that uses Neural Networks and Cryptography to detect AI Deepfakes and Face Swaps.
 
+---
+
+## 🚀 Deploy to Render (1-Click)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Dharun-2k7/VeriMedia)
+
+> **After clicking the button**, Render will ask you to set two environment variables:
+> 1. `FRONTEND_URL` → Leave blank for now (you'll fill it after the services spin up)
+> 2. `NEXT_PUBLIC_API_URL` → Leave blank for now
+>
+> Once both services are live:
+> - Copy the **backend** URL (e.g. `https://verimedia-backend.onrender.com`) and set `NEXT_PUBLIC_API_URL` to `https://verimedia-backend.onrender.com/api` in the **frontend** service env vars.
+> - Copy the **frontend** URL (e.g. `https://verimedia-frontend.onrender.com`) and set `FRONTEND_URL` to `https://verimedia-frontend.onrender.com` in the **backend** service env vars.
+> - Redeploy both services for the changes to take effect.
+
+---
+
 ## System Requirements
 - **Python 3.10+** (For the AI Backend)
 - **Node.js 18+** (For the React Frontend)

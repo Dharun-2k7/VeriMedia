@@ -10,7 +10,8 @@ import json
 
 router = APIRouter()
 
-STORAGE_DIR = "../storage/files"
+_base_storage = os.environ.get("STORAGE_DIR", os.path.join(os.path.dirname(__file__), "..", "..", "..", "storage"))
+STORAGE_DIR = os.path.join(_base_storage, "files")
 os.makedirs(STORAGE_DIR, exist_ok=True)
 
 # Initialize Authority Identity for the Oracle Pattern

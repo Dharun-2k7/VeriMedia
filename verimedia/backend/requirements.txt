@@ -1,3 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 sqlalchemy>=2.0.0
@@ -8,7 +9,7 @@ aiofiles>=23.0.0
 Pillow>=10.0.0
 numpy>=1.26.0
 scipy>=1.11.0
-torch --index-url https://download.pytorch.org/whl/cpu
+torch
 transformers
-pillow
 facenet-pytorch
+
